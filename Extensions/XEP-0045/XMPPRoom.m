@@ -677,6 +677,44 @@ enum XMPPRoomState
 		dispatch_async(moduleQueue, block);
 }
 
+- (void)fetchOwnersList
+{
+    dispatch_block_t block = ^{ @autoreleasepool {
+        
+        XMPPLogTrace();
+        
+        // <iq type='get'
+        //       id='member3'
+        //       to='coven@chat.shakespeare.lit'>
+        //   <query xmlns='http://jabber.org/protocol/muc#admin'>
+        //     <item affiliation='member'/>
+        //   </query>
+        // </iq>
+        
+        NSString *fetchID = [xmppStream generateUUID];
+        
+        NSXMLElement *item = [NSXMLElement elementWithName:@"item"];
+        [item addAttributeWithName:@"affiliation" stringValue:@"owner"];
+        
+        NSXMLElement *query = [NSXMLElement elementWithName:@"query" xmlns:XMPPMUCAdminNamespace];
+        [query addChild:item];
+        
+        XMPPIQ *iq = [XMPPIQ iqWithType:@"get" to:roomJID elementID:fetchID child:query];
+        
+        [xmppStream sendElement:iq];
+        
+        [responseTracker addID:fetchID
+                        target:self
+                      selector:@selector(handleFetchMembersListResponse:withInfo:)
+                       timeout:60.0];
+    }};
+    
+    if (dispatch_get_specific(moduleQueueTag))
+        block();
+    else
+        dispatch_async(moduleQueue, block);
+}
+
 - (void)handleEditRoomPrivilegesResponse:(XMPPIQ *)iq withInfo:(id <XMPPTrackingInfo>)info
 {
 	if ([[iq type] isEqualToString:@"result"])
