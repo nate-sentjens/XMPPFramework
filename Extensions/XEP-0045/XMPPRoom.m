@@ -342,6 +342,15 @@ enum XMPPRoomState
 		
 		NSXMLElement *query = [iq elementForName:@"query" xmlns:XMPPMUCOwnerNamespace];
 		NSXMLElement *x = [query elementForName:@"x" xmlns:@"jabber:x:data"];
+        
+        for (NSXMLElement *field in [x elementsForName:@"field"]) {
+            NSString *var = [field attributeStringValueForName:@"var"];
+            
+            if ([var isEqualToString:@"muc#roomconfig_roomname"]) {
+                roomSubject = [[field elementForName:@"value"] stringValue];
+                [multicastDelegate xmppRoom:self roomSubjectChanged:roomSubject];
+            }
+        }
 		
 		[multicastDelegate xmppRoom:self didFetchConfigurationForm:x];
 	}
@@ -488,7 +497,47 @@ enum XMPPRoomState
 
 - (void)changeRoomSubject:(NSString *)newRoomSubject
 {
-	// Todo
+    /*
+     <message
+     from='wiccarocks@shakespeare.lit/laptop'
+     id='lh2bs617'
+     to='coven@chat.shakespeare.lit'
+     type='groupchat'>
+     <subject>Fire Burn and Cauldron Bubble!</subject>
+     </message>
+     */
+    
+    NSXMLElement *subject = [NSXMLElement elementWithName:@"subject" stringValue:newRoomSubject];
+    
+    XMPPMessage *message = [XMPPMessage message];
+    [message addAttributeWithName:@"to" stringValue:[roomJID full]];
+    [message addAttributeWithName:@"type" stringValue:@"groupchat"];
+    [message addAttributeWithName:@"id" stringValue:[xmppStream generateUUID]];
+    
+    [message addChild:subject];
+    
+    [xmppStream sendElement:message];
+    
+    
+    NSXMLElement * x = [XMPPElement elementWithName:@"x" xmlns:@"jabber:x:data"];
+    [x addAttributeWithName:@"type" stringValue:@"submit"];
+    
+    // Fields
+    
+    NSXMLElement * field1 = [[XMPPElement  alloc] initWithName:@"field"];
+    [field1 addAttributeWithName:@"var" stringValue:@"FORM_TYPE"];
+    [field1 addChild:[NSXMLElement elementWithName:@"value" stringValue:@"http://jabber.org/protocol/muc#roomconfig"]];
+    [x addChild:field1];
+    
+    NSXMLElement * field2 = [[XMPPElement  alloc] initWithName:@"field"];
+    [field2 addAttributeWithName:@"var" stringValue:@"muc#roomconfig_roomname"];
+    [field2 addChild:[NSXMLElement elementWithName:@"value" stringValue:newRoomSubject]];
+    [x addChild:field2];
+    
+    [self configureRoomUsingOptions:x];
+    
+    roomSubject = newRoomSubject;
+    [multicastDelegate xmppRoom:self roomSubjectChanged:roomSubject];
 }
 
 - (void)handleFetchBanListResponse:(XMPPIQ *)iq withInfo:(id <XMPPTrackingInfo>)info
@@ -1122,6 +1171,7 @@ enum XMPPRoomState
     else if ([message isGroupChatMessageWithSubject])
     {
         roomSubject = [message subject];
+        [multicastDelegate xmppRoom:self roomSubjectChanged:roomSubject];
     }
 	else
 	{
