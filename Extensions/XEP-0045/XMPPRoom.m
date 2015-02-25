@@ -726,6 +726,29 @@ enum XMPPRoomState
 		dispatch_async(moduleQueue, block);
 }
 
+- (void)handleFetchOwnersListResponse:(XMPPIQ *)iq withInfo:(id <XMPPTrackingInfo>)info
+{
+    if ([[iq type] isEqualToString:@"result"])
+    {
+        // <iq type='result'
+        //     from='coven@chat.shakespeare.lit'
+        //       id='member3'>
+        //   <query xmlns='http://jabber.org/protocol/muc#admin'>
+        //     <item affiliation='owner' jid='hag66@shakespeare.lit' nick='thirdwitch' role='participant'/>
+        //   </query>
+        // </iq>
+        
+        NSXMLElement *query = [iq elementForName:@"query" xmlns:XMPPMUCAdminNamespace];
+        NSArray *items = [query elementsForName:@"item"];
+        
+        [multicastDelegate xmppRoom:self didFetchMembersList:items];
+    }
+    else
+    {
+        [multicastDelegate xmppRoom:self didNotFetchMembersList:iq];
+    }
+}
+
 - (void)fetchOwnersList
 {
     dispatch_block_t block = ^{ @autoreleasepool {
@@ -754,7 +777,7 @@ enum XMPPRoomState
         
         [responseTracker addID:fetchID
                         target:self
-                      selector:@selector(handleFetchMembersListResponse:withInfo:)
+                      selector:@selector(handleFetchOwnersListResponse:withInfo:)
                        timeout:60.0];
     }};
     
